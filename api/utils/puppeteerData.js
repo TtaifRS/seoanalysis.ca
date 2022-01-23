@@ -16,7 +16,8 @@ export const puppeteerData = async (url, keyword) => {
     const validURL = await urlExist(URL)
     const browser = await puppeteer.launch({
       headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      'ignoreHTTPSErrors': true
     })
 
     const page = await browser.newPage()
