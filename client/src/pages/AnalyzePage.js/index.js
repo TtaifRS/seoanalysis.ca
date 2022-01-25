@@ -45,7 +45,7 @@ const AnalyzePage = ({ url, keyword }) => {
   const [err, setErr] = useState(false)
 
   const axiosInstance = axios.create({
-    baseURL: procees.env.REACT_APP_API_URL
+    baseURL: process.env.REACT_APP_API_URL
   })
 
   useEffect(() => {
