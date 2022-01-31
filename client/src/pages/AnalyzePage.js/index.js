@@ -80,7 +80,7 @@ const AnalyzePage = ({ url, keyword }) => {
     }
     fetchData()
 
-  }, [url, keyword, axiosInstance])
+  }, [url, keyword])
 
 
   function printDocument() {
