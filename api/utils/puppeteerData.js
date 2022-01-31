@@ -1,6 +1,8 @@
 import puppeteer from 'puppeteer'
 import urlExist from 'url-exist'
 import _ from 'lodash'
+import FingerprintGenerator from 'fingerprint-generator'
+import { FingerprintInjector } from 'fingerprint-injector'
 
 import { createLightHouseReportWithBrowser, getPageSpeed } from './lighthouse-utlils.js'
 
@@ -10,19 +12,37 @@ import { encodeData, firstParaData, getImageData, getLinkData, getMetaData, getS
 
 
 export const puppeteerData = async (url, keyword) => {
-  try {
-    const URL = url
-    console.log(URL)
-    const validURL = await urlExist(URL)
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-      'ignoreHTTPSErrors': true
-    })
 
+  let URL = url
+  if (!URL.includes('https') && !URL.includes('http')) {
+    URL = `https://${url}`
+  }
+
+  if (URL.includes('http://')) {
+    URL = url.replace("http://", "https://")
+  }
+  console.log(URL)
+  const validURL = await urlExist(URL)
+
+  const fingerprintInjector = new FingerprintInjector();
+
+  const fingerprintGenerator = new FingerprintGenerator({
+    devices: ['desktop'],
+    browsers: [{ name: 'chrome', minVersion: 88 }],
+  });
+
+  const { fingerprint } = fingerprintGenerator.getFingerprint();
+  const browser = await puppeteer.launch({
+    executablePath: '/usr/bin/chromium-browser',
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu'],
+    'ignoreHTTPSErrors': true,
+  })
+  try {
     const page = await browser.newPage()
     if (validURL) {
       await page.setViewport({ width: 1366, height: 768 })
+      await fingerprintInjector.attachFingerprintToPuppeteer(page, fingerprint);
       const time1 = Date.now()
       await page.goto(URL, { waitUntil: 'networkidle2', timeout: 0 })
       const time2 = Date.now()
@@ -122,11 +142,12 @@ export const puppeteerData = async (url, keyword) => {
         return n + (val === search);
       }, 0);
 
+      console.log(countH1)
       const headings = {
         headerStructure,
       }
 
-      if (countH1 = 0) {
+      if (countH1 === 0) {
         headings.h1Score = 0
       } else {
         headings.h1Score = 1
@@ -181,13 +202,28 @@ export const puppeteerData = async (url, keyword) => {
       //
       //lighthousedata
       //
+
       const result = await createLightHouseReportWithBrowser(
         browser,
         URL,
         {
           output: "json",
-          screenEmulation: { mobile: false },
           formFactor: 'desktop',
+          throttling: {
+            rttMs: 40,
+            throughputKbps: 10240,
+            cpuSlowdownMultiplier: 1,
+            requestLatencyMs: 0,
+            downloadThroughputKbps: 0,
+            uploadThroughputKbps: 0
+          },
+          screenEmulation: {
+            mobile: false,
+            width: 1350,
+            height: 940,
+            deviceScaleFactor: 1,
+            disabled: false
+          },
           logLevel: 'info',
           onlyAudits: [
             "first-contentful-paint",
@@ -212,7 +248,8 @@ export const puppeteerData = async (url, keyword) => {
             "js-libraries",
             "viewport",
           ],
-        }
+
+        },
       )
 
       const lhReport = JSON.parse(result.report)
@@ -262,8 +299,9 @@ export const puppeteerData = async (url, keyword) => {
       const viewPortData = lhAudits["viewport"]
 
 
-      await browser.close()
 
+      await page.close()
+      console.log("page close")
 
       const viewPort = {
         title: viewPortData.title,
@@ -443,6 +481,8 @@ export const puppeteerData = async (url, keyword) => {
         }
       }
     } else {
+      await browser.close()
+      console.log("browser closing")
       return {
         success: false,
         status: 400,
@@ -454,6 +494,10 @@ export const puppeteerData = async (url, keyword) => {
   } catch (error) {
     console.log(error)
     return { status: 400, error, success: false }
+  }
+  finally {
+    await browser.close()
+    console.log("closing browser")
   }
 }
 
